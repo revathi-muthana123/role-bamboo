@@ -1,0 +1,129 @@
+#
+# Installs Atlassian Bamboo on the server
+#
+# - Ensure that user and group do exists
+# - Stop Bamboo if needed
+#     It is only necessary at this place if the directory should be wiped
+# - Wipe installation directory configured
+# - Download the application in the appropiate version
+# - Create path to installation directory
+# - Extract downloaded version to installation directory
+# - Remember installed version
+# - Install startup script
+---
+- name: Ensure Bamboo group
+  group:
+    name: "{{ item.group }}"
+    gid: "{{ item.gid }}"
+    state: present
+  with_items:
+    - "{{ bamboo_configuration_os_user }}"
+  notify: restart bamboo
+
+- name: Ensure Bamboo user
+  user:
+    name: "{{ item.name }}"
+    group: "{{ item.group }}"
+    groups: "{{ bamboo_configuration_additional_os_groups }}"
+    uid: "{{ item.uid }}"
+    home: "{{ item.home }}"
+    shell: "{{ item.shell }}"
+    comment: "{{ item.description }}"
+    state: present
+  with_items:
+    - "{{ bamboo_configuration_os_user }}"
+  notify: restart bamboo
+
+
+- name: Stop Bamboo if running and it should be wiped
+  service:
+    name: "{{ bamboo_configuration_run_service }}"
+    state: stopped
+  notify: restart bamboo
+  when: bamboo_install_wipe_installation or bamboo_install_wipe_home
+
+- name: Wipe installaton directory "{{ bamboo_configuration_path_installation|dirname }}/atlassian-bamboo-{{ bamboo_install_version }}"
+  file:
+    path: "{{ bamboo_configuration_path_installation|dirname }}/atlassian-bamboo-{{ bamboo_install_version }}"
+    state: absent
+  when: bamboo_install_wipe_installation
+  notify: restart bamboo
+
+
+- name: Download Atlassian Bamboo "{{ bamboo_install_version }}"
+  import_role:
+    name: library
+    tasks_from: download_file.yml
+  vars:
+    url: "{{ bamboo_install_download_url}}"
+    dest: "{{ environment_tmp_directory }}/atlassian-bamboo.tar.gz"
+    sha256checksum: "{{ bamboo_install_sha256_checksum }}"
+
+- name: Ensure installation base directory {{ bamboo_configuration_path_installation|dirname }}
+  file:
+    path: "{{ bamboo_configuration_path_installation|dirname }}"
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+# We copy to tmp so we are able to change installation files by detecting changes
+- name: Extract archive to "{{ environment_tmp_directory }}"
+  unarchive:
+    src: "{{ environment_tmp_directory }}/atlassian-bamboo.tar.gz"
+    remote_src: yes
+    dest: "{{ environment_tmp_directory }}"
+  changed_when: false
+
+- name: Fix group and owner of installation files
+  file:
+    path: "{{ item.path }}"
+    recurse: yes
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0750"
+  changed_when: false
+  with_items:
+    - path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}"
+      owner: root
+      group: "{{ bamboo_configuration_os_user.group }}"
+    - path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}/conf"
+      owner: "{{ bamboo_configuration_os_user.name }}"
+      group: "{{ bamboo_configuration_os_user.group }}"
+    - path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}/logs"
+      owner: "{{ bamboo_configuration_os_user.name }}"
+      group: "{{ bamboo_configuration_os_user.group }}"
+    - path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}/temp"
+      owner: "{{ bamboo_configuration_os_user.name }}"
+      group: "{{ bamboo_configuration_os_user.group }}"
+    - path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}/work"
+      owner: "{{ bamboo_configuration_os_user.name }}"
+      group: "{{ bamboo_configuration_os_user.group }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Patch installation files
+  include_tasks: install_patches.yml
+  vars:
+    path: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}"
+
+# No copy the installation files to the real destination. Only this task will detect a change
+- name: Copy installation files to "{{ bamboo_configuration_path_installation|dirname }}"
+  synchronize:
+    archive: yes
+    checksum: yes
+    times: no
+    src: "{{ environment_tmp_directory }}/atlassian-bamboo-{{ bamboo_install_version }}"
+    dest: "{{ bamboo_configuration_path_installation|dirname }}/"
+  delegate_to: "{{ inventory_hostname }}"
+  notify: restart bamboo
+
+- name: Install robots.txt
+  copy:
+    src: robots.txt
+    dest: "{{ bamboo_configuration_path_installation|dirname }}/atlassian-bamboo-{{ bamboo_install_version }}/atlassian-bamboo/"
+    owner: root
+    group: "{{ bamboo_configuration_os_user.group }}"
+
+- name: Install startup script
+  include_tasks: install_startup_script.yml

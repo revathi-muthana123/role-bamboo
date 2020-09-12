@@ -1,0 +1,45 @@
+#
+# Setup the home directory for Bamboo.
+#
+# - Wipe home if switched on.
+# - Ensures home directory
+# - Configure Bitbucket properties (if switched on)
+---
+
+- name: Wipe home directory {{ bamboo_configuration_path_home }}
+  file:
+    path: "{{ bamboo_configuration_path_home }}"
+    state: absent
+  notify: restart bamboo
+  when: bamboo_install_wipe_home
+
+- name: Ensure home directory "{{ bamboo_configuration_common_path.home }}"
+  file:
+    path: "{{ item.path }}"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+    state: directory
+  with_items:
+    - path: "{{ bamboo_configuration_path_home|dirname }}" # Create base directory first since it should be owned by root
+      owner: "root"
+      group: "root"
+      mode: "0755"
+    - path: "{{ bamboo_configuration_path_home }}"
+      owner: "{{ bamboo_configuration_os_user.name }}"
+      group: "{{  bamboo_configuration_os_user.group }}"
+      mode: "0750"
+  notify: restart bamboo
+
+#- name: Configure Bitbucket properties
+#  template:
+#    src: home/shared/bitbucket.properties.j2
+#    dest: "{{ bitbucket_configuration_datacenter_shared_home }}/bitbucket.properties"
+#    owner: "{{ bitbucket_configuration_os_user.name }}"
+#    group: "{{ bitbucket_configuration_os_user.group }}"
+#    mode: 0755
+#  # we need become bitbucket user here in case of using NFS for the shared home
+#  become: true
+#  become_user: "{{ bitbucket_configuration_os_user.name }}"
+#  notify: restart bitbucket
+#  when: bitbucket_install_properties

@@ -1,0 +1,18 @@
+---
+- debug:
+    msg: "Install Atlassian Bamboo"
+
+- name: Prepare server environment
+  include_tasks: prepare_{{ ansible_os_family | lower }}.yml
+
+- name: Check preconditions
+  import_tasks: check.yml
+
+- name: Install Bamboo
+  include_tasks: install.yml
+
+- name: Setup home
+  include_tasks: setup_home.yml
+
+- name: After installation tasks
+  include_tasks: after_setup.yml

@@ -1,0 +1,13 @@
+---
+# State "restarted" is not sufficient because a restart would not reload the configuration file. 
+- name: Stop Bamboo
+  service:
+    name: "{{ bamboo_configuration_run_service }}"
+    state: stopped
+  listen: restart bamboo
+
+- name: Start Bamboo
+  service:
+    name: "{{ bamboo_configuration_run_service }}"
+    state: started
+  listen: restart bamboo

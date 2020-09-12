@@ -1,0 +1,88 @@
+---
+
+# Some of the items below always trigger a change. We can ignore this because we patch in a
+# temporary directory and copy the complete patched file to destination
+- name: Adpat {{ path }}/conf/server.xml
+  xml:
+    path: "{{ path }}/conf/server.xml"
+    xpath: "{{ item.xpath }}"
+    state: "{{ item.state|default('present') }}"
+    value: "{{ item.value|default(omit) }}"
+    attribute: "{{ item.attribute|default(omit) }}"
+    input_type: "{{ item.input_type|default(omit) }}"
+    add_children: "{{ item.add_children|default(omit) }}"
+    pretty_print: True
+  changed_when: False
+  with_items:
+    - name: Shutdown port
+      xpath: /Server
+      attribute: port
+      value: "{{ bamboo_configuration_run_shutdown_port }}"
+    - name: Remove current connectors
+      xpath: /Server/Service/Connector
+      state: absent
+    - name: Add connector
+      xpath: /Server/Service
+      input_type: yaml
+      add_children: "{{ bamboo_configuration_connectors }}"
+    - name: Add valves
+      xpath: /Server/Service/Engine
+      input_type: yaml
+      add_children: "{{ bamboo_configuration_valves }}"
+    - name: Configure context
+      xpath: /Server/Service/Engine/Host/Context
+      attribute: path
+      value: "{{ bamboo_configuration_context }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Adapt {{ path }}/atlassian-bamboo/WEB-INF/web.xml
+  xml:
+    path: "{{ path }}/atlassian-bamboo/WEB-INF/web.xml"
+    namespaces:
+      x: http://java.sun.com/xml/ns/j2ee
+    xpath: "/x:web-app"
+    input_type: yaml
+    add_children: "{{ bamboo_configuration_webapp_additions }}"
+    pretty_print: True
+    state: present
+  changed_when: False
+
+- name: Adapt {{ path }}/atlassian-bamboo/WEB-INF/classes/seraph-config.xml
+  xml:
+    path: "{{ path }}/atlassian-bamboo/WEB-INF/classes/seraph-config.xml"
+    xpath: /security-config/authenticator
+    attribute: class
+    value: "{{ bamboo_configuration_authentication_seraph_class }}"
+    pretty_print: True
+  changed_when: False
+
+- name: Adapt crowd configuration in {{ path }}/atlassian-bamboo/WEB-INF/classes/crowd.properties
+  lineinfile:
+    path: "{{ path }}/atlassian-bamboo/WEB-INF/classes/crowd.properties"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.key }}    {{ item.value }}"
+  when: item.value
+  changed_when: False
+  with_items:
+    - key: application.name
+      value: "{{ bamboo_configuration_authentication_crowd_name }}"
+      regexp: ^\s*application\.name
+    - key: application.password
+      value: "{{ bamboo_configuration_authentication_crowd_password }}"
+      regexp: ^\s*application\.password
+    - key: crowd.base.url
+      value: "{{ bamboo_configuration_authentication_crowd_base_url }}"
+      regexp: ^\s*crowd\.base\.url
+
+- name: Inject global html snippet into {{ path }}/atlassian-bamboo/fragments/decorator/header.ftl
+  blockinfile:
+    path: "{{ path }}/atlassian-bamboo/fragments/decorator/header.ftl"
+    insertbefore: <header
+    content: "{{ bamboo_configuration_global_html_snippet }}"
+    marker: "<!-- {mark} ANSIBLE MANAGED BLOCK -->"
+  changed_when: False
+  when:
+    - bamboo_configuration_global_html_snippet is defined
+    - bamboo_configuration_global_html_snippet is not none
+    - bamboo_configuration_global_html_snippet|trim != ''

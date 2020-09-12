@@ -1,0 +1,72 @@
+#
+# Checks the all requirements are met to install Bamboo on this server
+#
+# - Check versions
+#   - Java
+#   - git
+#
+# - Check that the time is synchronized (if not disabled via configuration)
+#
+---
+
+# Prepare version checks
+- name: Create directory for ansible custom facts
+  file: state=directory recurse=yes path=/etc/ansible/facts.d
+
+- name: Install custom facts to gather version information
+  copy: src="facts/{{ item }}.fact" dest=/etc/ansible/facts.d mode="u=rwx,og=rx"
+  with_items:
+    - java
+    - git
+
+- name: Re-read facts after adding custom fact
+  setup: filter=ansible_local
+
+
+# Version Checks
+- name: Check Java installation
+  include_tasks: util_check_command.yml
+  vars:
+    command:
+      name: 'java'
+      expected: { provider: "java", version: "{{ bamboo_requirements_java_version }}" }
+      actual: "{{ ansible_local.java }}"
+
+- name: Check Git installation
+  include_tasks: util_check_command.yml
+  vars:
+    command:
+      name: 'git'
+      expected: { provider: "git", version: "{{ bamboo_requirements_git_version }}" }
+      actual: "{{ ansible_local.git }}"
+
+# Time synchronization check
+- name: Check if time synchronization is enabled (systemd)
+  shell: '[ "$(timedatectl | grep "System clock synchronized" | cut -d ":" -f 2 | xargs)" = "yes" ]'
+  changed_when: false
+  when:
+    - bamboo_requirements_check_time_synchronisation
+    - ansible_service_mgr == "systemd"
+
+- name: Check for ntpq
+  command: which ntpq
+  register: which_ntpq
+  ignore_errors: true
+  changed_when: false
+  when: bamboo_requirements_check_time_synchronisation
+
+- name: Check if time synchronization is enabled (ntpq)
+  shell: '[ "$(ntpq -nc peers | head -3 | tail -1 | sed -r "s/\s+/ /g" | cut -d " " -f 9 | cut -d "." -f 1 | tr -d "-")" -le 1000  ]'
+  register: ntpq_check
+  changed_when: false
+  when:
+    - bamboo_requirements_check_time_synchronisation
+    - which_ntpq|succeeded
+
+- name: Fail if no time checking was done
+  fail:
+    msg: No time checking was done since neither systemd nor ntpq was available
+  when:
+    - bamboo_requirements_check_time_synchronisation
+    - ansible_service_mgr != "systemd"
+    - ntpq_check|skipped

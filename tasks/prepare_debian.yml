@@ -1,0 +1,54 @@
+#
+# Prepares the server to be ready for the installation of Bitbucket
+#
+# - Install necessaray software
+#   - git
+---
+- name: Update APT cache
+  apt:
+    update_cache: yes
+  changed_when: false
+
+- name: Setup git ppa repository
+  apt_repository:
+    repo: "ppa:git-core/ppa"
+
+- name: Install git
+  apt:
+    name: git
+    state: present
+  notify: restart bamboo
+
+- block:
+
+  - name: Setup git-lfs ppa repository
+    apt_repository:
+      repo: "deb https://packagecloud.io/github/git-lfs/ubuntu/ {{ ansible_distribution_release }} main"
+
+  - name: Check for GPG key
+    shell: apt-key list | grep packagecloud
+    register: result_check_gpg_key
+    failed_when:
+      - result_check_gpg_key.rc != 0
+      - result_check_gpg_key.rc != 1
+    changed_when: False
+
+  - name: Import GPG key
+    shell: curl -L "https://packagecloud.io/github/git-lfs/gpgkey" 2> /dev/null | apt-key add - &>/dev/null
+    args:
+      warn: no
+    when: result_check_gpg_key.rc != 0
+
+  - name: Install packages
+    apt:
+      name: git-lfs
+      state: present
+      update_cache: yes
+    notify: restart bamboo
+
+  when: bamboo_install_git_lfs
+
+- name: Install python lxml
+  apt:
+    name: python-lxml
+    state: present

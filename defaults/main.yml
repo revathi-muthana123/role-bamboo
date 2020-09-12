@@ -1,0 +1,159 @@
+---
+# This role uses three types of variables. All of them are prefixed with "bamboo_"
+#
+# - install: variables that control the installation of Bamboo
+# - requirements: variables that control the checks if Bamboo can be installed
+# - configuration: variables that controls how Bamboo behaves when running
+#
+# In addition the role consumes some environment variables starting with "environment_"
+
+
+#
+# Installation variables
+#
+
+# Version of Bamboo to install
+bamboo_install_version: 6.2.5
+# Controls wiping during installation. The home and the installation directory can be wiped independently
+bamboo_install_wipe_installation: no
+# Controls wiping home directory during installation
+bamboo_install_wipe_home: no
+# Wether Bamboo should be restarted in any case. Setting this to "no" will restart Bamboo only in case of changes
+bamboo_install_force_restart: no
+# Full download URl for Bamboo. Must be a  zip or tar.gz archive
+bamboo_install_download_url: "https://www.atlassian.com/software/bamboo/downloads/binary/atlassian-bamboo-{{ bamboo_install_version }}.tar.gz"
+# (Optional) Checksum for the downloaded file. Will be used to verify the downloaded file. In addition, if the file has
+# already been downloaded, this checksum is used to determine if it has to be downloaded again
+#  6.2.5: de739d5b4d8c598588d4f7ea40006b1eaf8ac8a22d15d1226cf0b90726803e9c
+#  6.3.2: 09daf9dd33dd9ecfecfc7cfe1d0f77e6696f0a6b361c30648b36fc8f3626b3e1
+bamboo_install_sha256_checksum: de739d5b4d8c598588d4f7ea40006b1eaf8ac8a22d15d1226cf0b90726803e9c
+
+# Also install git lfs packages
+bamboo_install_git_lfs: yes
+
+#
+# Requirements variables
+#
+
+# Allowed java versions
+bamboo_requirements_java_version:
+  min: 1.8
+  max_excluded: 1.9
+
+# Allowed git versions
+bamboo_requirements_git_version:
+  min: 1.8
+  max_excluded: 99
+
+# Controls wether to check for active time synchronization.
+# Currently systemd and ntpq are checked for time synchronization
+bamboo_requirements_check_time_synchronisation: True
+
+
+#
+# Configuration variables
+#
+
+# Path settings
+bamboo_configuration_path_installation:  /opt/atlassian/bamboo
+bamboo_configuration_path_home:          /var/opt/atlassian/bamboo
+
+# User that Bamboo runs with
+bamboo_configuration_os_user:
+  description: "Atlassian Bamboo"
+  name: bamboo
+  group: bamboo
+  groups:
+  uid: 11021 # should use a high number especially for datacenter, since the low numbers are usally used for local users
+  gid: 11021
+  home: "/home/bamboo"
+  shell: "/bin/bash"
+
+bamboo_configuration_additional_os_groups:
+
+# Bamboo connectors
+bamboo_configuration_connectors:
+  - Connector:
+      protocol: 'HTTP/1.1'
+      port: '8085'
+      maxThreads: '150'
+      minSpareThreads: '25'
+      connectionTimeout: '20000'
+      disableUploadTimeout: 'true'
+      acceptCount: '100'
+      enableLookups: 'false'
+      maxHttpHeaderSize: '8192'
+      useBodyEncodingForURI: 'true'
+      URIEncoding: 'UTF-8'
+      redirectPort: '8443'
+# Add the following attributes if using behind a proxy
+#      address: eth0 # Network interface to listen on
+#      scheme: https
+#      proxyName: bamboo.example.org
+#      proxyPort: '443'
+#      secure: 'true'
+
+bamboo_configuration_valves: []
+# Add the following configuration if using behind a proxy
+#  - Valve:
+#      className: org.apache.catalina.valves.RemoteIpValve
+#      remoteIpHeader: x-forwared-for
+#      remoteIpProxiesHeader: x-forwarded-by
+#      protocolHeader: x-forwarded-proto
+
+bamboo_configuration_webapp_additions: []
+# Example for enforcing SSL connections
+#  - security-constraint:
+#      _:
+#        - web-resource-collection:
+#            _:
+#              - web-resource-name: Bamboo
+#              - url-pattern: /*
+#        - user-data-constraint:
+#            _:
+#              - transport-guarantee: CONFIDENTAL
+
+# Context under which Bamboo should be running
+bamboo_configuration_context: /
+
+# Authentication settings
+
+# Class to use for authentication.
+#  - Local users: com.atlassian.bamboo.user.authentication.BambooAuthenticator
+#  - Crowd users: com.atlassian.crowd.integration.seraph.v25.BambooAuthenticator
+bamboo_configuration_authentication_seraph_class: com.atlassian.bamboo.user.authentication.BambooAuthenticator
+
+# The following settings only takes effect if the above setting is set to crowd authentication
+bamboo_configuration_authentication_crowd_name:
+bamboo_configuration_authentication_crowd_password:
+bamboo_configuration_authentication_crowd_base_url:
+
+# Java settings for Bamboo
+bamboo_configuration_java_home:          /app/jdk/current
+bamboo_configuration_java_min_memory:    1g
+bamboo_configuration_java_max_memory:    2g
+bamboo_configuration_java_opts_default:  ""
+bamboo_configuration_java_opts_addition: ""
+
+# Run options
+bamboo_configuration_run_service:        bamboo
+bamboo_configuration_run_umask:          "0027"
+bamboo_configuration_run_max_open_files: 65536
+bamboo_configuration_run_shutdown_port:  8007
+
+# Some script or html code to inject into every page of bitbucket.
+# Note: it must be valid html code, e.g. inject JS code like in the following example:
+#    <script type="text/javascript">
+#     ... fancy java script code ...
+#    </script>
+bamboo_configuration_global_html_snippet: |
+  <script>
+    alert("Huhu!")
+  </script>
+
+#
+# Environment variables
+#
+
+# Temproary directory to use for the downloaded files
+environment_tmp_directory: /var/tmp

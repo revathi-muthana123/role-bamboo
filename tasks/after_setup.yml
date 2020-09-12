@@ -1,0 +1,18 @@
+#
+# Running tasks after upgrade such as restarting
+#
+---
+- name: Create symlink to installation directory
+  file:
+    src: "{{ bamboo_configuration_path_installation|dirname }}/atlassian-bamboo-{{ bamboo_install_version }}"
+    path: "{{ bamboo_configuration_path_installation }}"
+    state: link
+    force: true
+    owner: "{{ bamboo_configuration_os_user.name }}"
+    group: "{{ bamboo_configuration_os_user.group }}"
+  notify: restart bamboo
+
+- name: Notify handler if restart should be forced
+  command: echo
+  notify: restart bamboo
+  when: bamboo_install_force_restart

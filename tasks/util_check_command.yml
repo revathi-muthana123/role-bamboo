@@ -1,0 +1,33 @@
+#
+# Utility task to check the provider and version of a program
+#
+# This task expects the following variables:
+#  command:
+#    name: <name of the command to check for>
+#    expected:
+#      provider: <name of the provider>
+#      version:
+#        min: <minimal version needed>
+#        max_excluded: <maximal version allowed, this version excluded>
+#    actual:
+#      provider: <actual provider>
+#      version: <actual version>
+#
+# It will fail if either the provider is not the same or the version is not in the range
+---
+- name: Check that "{{ command.name }}" is present
+  command: which {{command.name}}
+  changed_when: false
+
+- name: Check "{{ command.name }}" provider
+  assert:
+    that:
+      - "command.actual.provider == command.expected.provider"
+    msg: "The command {{command.name}} is not provided by {{command.expected.provider}} but {{command.actual.provider}}."
+
+- name: Check "{{ command.name }}" version (min="{{ command.expected.version.min }}", max_excluded="{{ command.expected.version.max_excluded }}")
+  assert:
+    that:
+      - "command.actual.version | version_compare(command.expected.version.min, '>=')"
+      - "command.actual.version | version_compare(command.expected.version.max_excluded, '<')"
+    msg: "The version of command {{ command.name }} is {{ command.actual.version }} but either not >= {{ command.expected.version.min }} or < {{ command.expected.version.max_excluded }})."

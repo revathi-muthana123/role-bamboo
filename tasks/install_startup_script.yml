@@ -1,0 +1,16 @@
+---
+- name: Check for upstart
+  command: which initctl
+  register: which_initctl
+  ignore_errors: yes
+  changed_when: false
+
+- name: "Install upstart script to /etc/init/{{ bamboo_configuration_run_service }}.conf"
+  template:
+    src: etc/init/bamboo.conf.j2
+    dest: "/etc/init/{{ bamboo_configuration_run_service }}.conf"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: restart bamboo
+  when: which_initctl|succeeded
